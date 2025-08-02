@@ -1,5 +1,5 @@
 'use client'
-
+import { useToast } from '@/hooks/use-toast'
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { Button } from '@/components/ui/button'
@@ -46,7 +46,8 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(true)
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [password, setPassword] = useState('')
-
+  const { toast } = useToast()  
+  
   // Form state
   const [formData, setFormData] = useState({
     title: '',
@@ -117,7 +118,7 @@ export default function AdminPage() {
     })
   }
 
-  const handleSubmit = async (e: React.FormEvent) => {
+   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
     try {
@@ -132,6 +133,8 @@ export default function AdminPage() {
         body: JSON.stringify(formData),
       })
 
+      const data = await response.json()
+
       if (response.ok) {
         await fetchMovies()
         setIsAddDialogOpen(false)
@@ -143,9 +146,28 @@ export default function AdminPage() {
           download_link: '',
           featured: false
         })
+        
+        // Show success toast
+        toast({
+          title: "Success!",
+          description: editingMovie ? "Movie updated successfully!" : "Movie added successfully!",
+        })
+      } else {
+        // Show error toast
+        toast({
+          title: "Error!",
+          description: data.error || "Failed to save movie",
+          variant: "destructive",
+        })
       }
     } catch (error) {
       console.error('Error saving movie:', error)
+      // Show error toast
+      toast({
+        title: "Error!",
+        description: "Network error while saving movie",
+        variant: "destructive",
+      })
     }
   }
 
@@ -168,11 +190,31 @@ export default function AdminPage() {
           method: 'DELETE',
         })
 
+        const data = await response.json()
+
         if (response.ok) {
           await fetchMovies()
+          // Show success toast
+          toast({
+            title: "Success!",
+            description: "Movie deleted successfully!",
+          })
+        } else {
+          // Show error toast
+          toast({
+            title: "Error!",
+            description: data.error || "Failed to delete movie",
+            variant: "destructive",
+          })
         }
       } catch (error) {
         console.error('Error deleting movie:', error)
+        // Show error toast
+        toast({
+          title: "Error!",
+          description: "Network error while deleting movie",
+          variant: "destructive",
+        })
       }
     }
   }
