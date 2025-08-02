@@ -229,9 +229,7 @@ export default function Home() {
                 <p className="text-gray-400">
                   © 2024 KiChao. All rights reserved.
                 </p>
-                <p className="text-gray-500 text-sm mt-1">
-                  Built with Next.js, TypeScript, and Tailwind CSS
-                </p>
+                
               </div>
               
               <div className="flex flex-col md:flex-row items-center gap-4">
