@@ -1,8 +1,7 @@
-import { Toaster } from '@/components/ui/toaster'
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
-import { Toaster } from "@/components/ui/toaster";
+import { Toaster as UIToaster } from "@/components/ui/toaster";
 import CustomCursor from "@/components/custom-cursor";
 import LoadingScreen from "@/components/loading-screen";
 import { ThemeProvider } from "next-themes";
@@ -55,10 +54,9 @@ export default function RootLayout({
           <LoadingScreen />
           {children}
           <CustomCursor />
-         
+          <UIToaster />
         </ThemeProvider>
       </body>
-       <Toaster />
     </html>
   );
 }
