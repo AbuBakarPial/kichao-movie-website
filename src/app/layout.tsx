@@ -55,9 +55,10 @@ export default function RootLayout({
           <LoadingScreen />
           {children}
           <CustomCursor />
-          <Toaster />
+         
         </ThemeProvider>
       </body>
+       <Toaster />
     </html>
   );
 }
