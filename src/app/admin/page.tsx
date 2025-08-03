@@ -1,14 +1,8 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
-import { Switch } from '@/components/ui/switch'
-import { Trash2, Edit, Plus, Settings, LogOut } from 'lucide-react'
-import { useToast } from '@/hooks/use-toast'
+import { motion } from 'framer-motion'
+import { toast } from 'sonner'
 
 interface Movie {
   id: string
@@ -21,16 +15,11 @@ interface Movie {
   updatedAt: string
 }
 
-const categories = ['Action', 'Comedy', 'Drama', 'Horror', 'Sci-Fi', 'Thriller', 'Animation', 'Romance']
-
 export default function AdminPage() {
-  const [movies, setMovies] = useState<Movie[]>([])
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [password, setPassword] = useState('')
-  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
-  const [editingMovie, setEditingMovie] = useState<Movie | null>(null)
-  const { toast } = useToast()
-
+  const [movies, setMovies] = useState<Movie[]>([])
+  const [loading, setLoading] = useState(false)
   const [formData, setFormData] = useState({
     title: '',
     poster_path: '',
@@ -39,13 +28,24 @@ export default function AdminPage() {
     featured: false
   })
 
+  const categories = [
+    'Action',
+    'Comedy',
+    'Drama',
+    'Horror',
+    'Sci-Fi',
+    'Thriller',
+    'Romance',
+    'Animation',
+    'Documentary',
+    'Fantasy'
+  ]
+
   useEffect(() => {
-    const adminAuth = localStorage.getItem('adminAuth')
-    if (adminAuth === 'true') {
-      setIsAuthenticated(true)
+    if (isAuthenticated) {
       fetchMovies()
     }
-  }, [])
+  }, [isAuthenticated])
 
   const fetchMovies = async () => {
     try {
@@ -54,57 +54,47 @@ export default function AdminPage() {
         const data = await response.json()
         setMovies(data)
       } else {
-        // If API fails, use sample data
-        setMovies([
-          {
-            id: "1",
-            title: "Sample Movie",
-            poster_path: "https://via.placeholder.com/500x750?text=Sample",
-            category: "Action",
-            download_link: "#",
-            featured: false,
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString()
-          }
-        ])
+        // If API fails, try to get from localStorage as fallback
+        const localMovies = localStorage.getItem('adminMovies')
+        if (localMovies) {
+          setMovies(JSON.parse(localMovies))
+        }
       }
     } catch (error) {
       console.error('Error fetching movies:', error)
-      toast({
-        title: "Demo Mode",
-        description: "Running in demo mode - API not available",
-        variant: "destructive",
-      })
+      // Fallback to localStorage
+      const localMovies = localStorage.getItem('adminMovies')
+      if (localMovies) {
+        setMovies(JSON.parse(localMovies))
+      }
     }
   }
 
-  const handleLogin = () => {
+  const handleLogin = (e: React.FormEvent) => {
+    e.preventDefault()
     if (password === 'admin123') {
       setIsAuthenticated(true)
-      localStorage.setItem('adminAuth', 'true')
-      fetchMovies()
-      toast({
-        title: "Login Successful",
-        description: "Welcome to admin panel",
-      })
+      toast.success('Login successful!')
     } else {
-      toast({
-        title: "Login Failed",
-        description: "Invalid password",
-        variant: "destructive",
-      })
+      toast.error('Invalid password!')
     }
+  }
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    const { name, value, type } = e.target
+    setFormData(prev => ({
+      ...prev,
+      [name]: type === 'checkbox' ? (e.target as HTMLInputElement).checked : value
+    }))
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    
+    setLoading(true)
+
     try {
-      const url = editingMovie ? `/api/movies/${editingMovie.id}` : '/api/movies'
-      const method = editingMovie ? 'PUT' : 'POST'
-      
-      const response = await fetch(url, {
-        method,
+      const response = await fetch('/api/movies', {
+        method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
@@ -113,20 +103,15 @@ export default function AdminPage() {
 
       if (response.ok) {
         const newMovie = await response.json()
-        toast({
-          title: "Success!",
-          description: editingMovie ? "Movie updated!" : "Movie added!",
-        })
         
-        // Add to local list for demo mode
-        if (!editingMovie) {
-          setMovies(prev => [newMovie, ...prev])
-        } else {
-          setMovies(prev => prev.map(m => m.id === editingMovie.id ? newMovie : m))
-        }
+        // Update local state
+        setMovies(prev => [newMovie, ...prev])
         
-        setIsAddDialogOpen(false)
-        setEditingMovie(null)
+        // Save to localStorage as backup
+        const localMovies = [...movies, newMovie]
+        localStorage.setItem('adminMovies', JSON.stringify(localMovies))
+        
+        // Reset form
         setFormData({
           title: '',
           poster_path: '',
@@ -134,22 +119,25 @@ export default function AdminPage() {
           download_link: '',
           featured: false
         })
+        
+        toast.success('Movie added successfully!')
       } else {
-        // Demo mode - create local movie
-        const demoMovie = {
+        // If API fails, create local movie
+        const localMovie: Movie = {
           id: Date.now().toString(),
           ...formData,
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString()
         }
         
-        setMovies(prev => [demoMovie, ...prev])
-        toast({
-          title: "Demo Mode",
-          description: "Movie added in demo mode (API not available)",
-        })
+        // Update local state
+        setMovies(prev => [localMovie, ...prev])
         
-        setIsAddDialogOpen(false)
+        // Save to localStorage
+        const localMovies = [...movies, localMovie]
+        localStorage.setItem('adminMovies', JSON.stringify(localMovies))
+        
+        // Reset form
         setFormData({
           title: '',
           poster_path: '',
@@ -157,25 +145,28 @@ export default function AdminPage() {
           download_link: '',
           featured: false
         })
+        
+        toast.success('Movie added locally (API unavailable)!')
       }
     } catch (error) {
-      console.error('Network error:', error)
+      console.error('Error adding movie:', error)
       
-      // Demo mode - create local movie
-      const demoMovie = {
+      // Create local movie as fallback
+      const localMovie: Movie = {
         id: Date.now().toString(),
         ...formData,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
       }
       
-      setMovies(prev => [demoMovie, ...prev])
-      toast({
-        title: "Demo Mode",
-        description: "Movie added in demo mode (Network error)",
-      })
+      // Update local state
+      setMovies(prev => [localMovie, ...prev])
       
-      setIsAddDialogOpen(false)
+      // Save to localStorage
+      const localMovies = [...movies, localMovie]
+      localStorage.setItem('adminMovies', JSON.stringify(localMovies))
+      
+      // Reset form
       setFormData({
         title: '',
         poster_path: '',
@@ -183,248 +174,312 @@ export default function AdminPage() {
         download_link: '',
         featured: false
       })
+      
+      toast.success('Movie added locally (network error)!')
+    } finally {
+      setLoading(false)
     }
   }
 
   const handleDelete = async (id: string) => {
-    if (confirm('Are you sure you want to delete this movie?')) {
-      try {
-        const response = await fetch(`/api/movies/${id}`, {
-          method: 'DELETE',
-        })
+    try {
+      const response = await fetch(`/api/movies/${id}`, {
+        method: 'DELETE',
+      })
 
-        if (response.ok) {
-          setMovies(prev => prev.filter(m => m.id !== id))
-          toast({
-            title: "Success!",
-            description: "Movie deleted!",
-          })
-        } else {
-          setMovies(prev => prev.filter(m => m.id !== id))
-          toast({
-            title: "Demo Mode",
-            description: "Movie deleted in demo mode",
-          })
-        }
-      } catch (error) {
-        setMovies(prev => prev.filter(m => m.id !== id))
-        toast({
-          title: "Demo Mode",
-          description: "Movie deleted in demo mode (Network error)",
-        })
+      if (response.ok) {
+        setMovies(prev => prev.filter(movie => movie.id !== id))
+        
+        // Update localStorage
+        const localMovies = movies.filter(movie => movie.id !== id)
+        localStorage.setItem('adminMovies', JSON.stringify(localMovies))
+        
+        toast.success('Movie deleted successfully!')
+      } else {
+        // If API fails, delete from local state only
+        setMovies(prev => prev.filter(movie => movie.id !== id))
+        
+        // Update localStorage
+        const localMovies = movies.filter(movie => movie.id !== id)
+        localStorage.setItem('adminMovies', JSON.stringify(localMovies))
+        
+        toast.success('Movie deleted locally!')
       }
+    } catch (error) {
+      console.error('Error deleting movie:', error)
+      
+      // Delete from local state as fallback
+      setMovies(prev => prev.filter(movie => movie.id !== id))
+      
+      // Update localStorage
+      const localMovies = movies.filter(movie => movie.id !== id)
+      localStorage.setItem('adminMovies', JSON.stringify(localMovies))
+      
+      toast.success('Movie deleted locally!')
+    }
+  }
+
+  const handleToggleFeatured = async (id: string, featured: boolean) => {
+    try {
+      const response = await fetch(`/api/movies/${id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ featured }),
+      })
+
+      if (response.ok) {
+        setMovies(prev => 
+          prev.map(movie => 
+            movie.id === id ? { ...movie, featured } : movie
+          )
+        )
+        
+        // Update localStorage
+        const localMovies = movies.map(movie => 
+          movie.id === id ? { ...movie, featured } : movie
+        )
+        localStorage.setItem('adminMovies', JSON.stringify(localMovies))
+        
+        toast.success(`Movie ${featured ? 'featured' : 'unfeatured'}!`)
+      } else {
+        // If API fails, update local state only
+        setMovies(prev => 
+          prev.map(movie => 
+            movie.id === id ? { ...movie, featured } : movie
+          )
+        )
+        
+        // Update localStorage
+        const localMovies = movies.map(movie => 
+          movie.id === id ? { ...movie, featured } : movie
+        )
+        localStorage.setItem('adminMovies', JSON.stringify(localMovies))
+        
+        toast.success(`Movie ${featured ? 'featured' : 'unfeatured'} locally!`)
+      }
+    } catch (error) {
+      console.error('Error updating movie:', error)
+      
+      // Update local state as fallback
+      setMovies(prev => 
+        prev.map(movie => 
+          movie.id === id ? { ...movie, featured } : movie
+        )
+      )
+      
+      // Update localStorage
+      const localMovies = movies.map(movie => 
+        movie.id === id ? { ...movie, featured } : movie
+      )
+      localStorage.setItem('adminMovies', JSON.stringify(localMovies))
+      
+      toast.success(`Movie ${featured ? 'featured' : 'unfeatured'} locally!`)
     }
   }
 
   if (!isAuthenticated) {
     return (
-      <div className="min-h-screen bg-gray-900 flex items-center justify-center p-4">
-        <div className="bg-gray-800 rounded-lg p-8 w-full max-w-md">
-          <h1 className="text-2xl font-bold text-white mb-6 text-center">Admin Login</h1>
-          <div className="space-y-4">
-            <div>
-              <Label htmlFor="password" className="text-white">Password</Label>
-              <Input
-                id="password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="Enter admin password"
-                className="mt-2"
-              />
-            </div>
-            <Button 
-              onClick={handleLogin} 
-              className="w-full bg-blue-600 hover:bg-blue-700"
-            >
-              Access Admin Panel
-            </Button>
-          </div>
+      <div className="min-h-screen animated-gradient flex items-center justify-center">
+        <div className="glass-card p-8 rounded-3xl max-w-md w-full mx-4">
+          <motion.div
+            initial={{ opacity: 0, y: 30 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6 }}
+          >
+            <h1 className="text-3xl font-bold text-white mb-6 text-center">Admin Login</h1>
+            <form onSubmit={handleLogin} className="space-y-4">
+              <div>
+                <label htmlFor="password" className="block text-sm font-medium text-gray-300 mb-2">
+                  Password
+                </label>
+                <input
+                  type="password"
+                  id="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                  placeholder="Enter admin password"
+                  required
+                />
+              </div>
+              <button
+                type="submit"
+                className="w-full bg-gradient-to-r from-green-500 to-emerald-500 text-white py-3 rounded-xl font-semibold hover:from-green-600 hover:to-emerald-600 transition-all duration-300 transform hover:scale-105"
+              >
+                Login
+              </button>
+            </form>
+          </motion.div>
         </div>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-gray-900">
+    <div className="min-h-screen animated-gradient">
       <div className="container mx-auto px-4 py-8">
-        <div className="flex justify-between items-center mb-8">
-          <h1 className="text-3xl font-bold text-white">Admin Panel</h1>
-          <Button
-            onClick={() => {
-              setIsAuthenticated(false)
-              localStorage.removeItem('adminAuth')
-            }}
-            variant="outline"
-            className="text-white border-white hover:bg-white hover:text-gray-900"
-          >
-            <LogOut className="w-4 h-4 mr-2" />
-            Logout
-          </Button>
-        </div>
+        <motion.div
+          initial={{ opacity: 0, y: 30 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6 }}
+        >
+          <div className="flex justify-between items-center mb-8">
+            <h1 className="text-4xl font-bold text-white">Admin Panel</h1>
+            <button
+              onClick={() => setIsAuthenticated(false)}
+              className="glass-button px-6 py-2 rounded-full text-white/80 hover:text-white border-white/20 hover:border-white/40 transition-all duration-300"
+            >
+              Logout
+            </button>
+          </div>
 
-        <div className="mb-8">
-          <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-            <DialogTrigger asChild>
-              <Button className="bg-green-600 hover:bg-green-700">
-                <Plus className="w-4 h-4 mr-2" />
-                Add Movie
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="bg-gray-800 text-white border-gray-700">
-              <DialogHeader>
-                <DialogTitle className="text-white">
-                  {editingMovie ? 'Edit Movie' : 'Add New Movie'}
-                </DialogTitle>
-              </DialogHeader>
-              <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Add Movie Form */}
+          <div className="glass-card p-6 rounded-3xl mb-8">
+            <h2 className="text-2xl font-bold text-white mb-6">Add New Movie</h2>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <Label htmlFor="title" className="text-white">Title</Label>
-                  <Input
+                  <label htmlFor="title" className="block text-sm font-medium text-gray-300 mb-2">
+                    Title *
+                  </label>
+                  <input
+                    type="text"
                     id="title"
+                    name="title"
                     value={formData.title}
-                    onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                    className="mt-2 bg-gray-700 border-gray-600 text-white"
+                    onChange={handleInputChange}
+                    className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                    placeholder="Movie title"
                     required
                   />
                 </div>
-                
                 <div>
-                  <Label htmlFor="poster_path" className="text-white">Poster URL</Label>
-                  <Input
-                    id="poster_path"
-                    value={formData.poster_path}
-                    onChange={(e) => setFormData({ ...formData, poster_path: e.target.value })}
-                    className="mt-2 bg-gray-700 border-gray-600 text-white"
+                  <label htmlFor="category" className="block text-sm font-medium text-gray-300 mb-2">
+                    Category *
+                  </label>
+                  <select
+                    id="category"
+                    name="category"
+                    value={formData.category}
+                    onChange={handleInputChange}
+                    className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
                     required
-                  />
-                </div>
-                
-                <div>
-                  <Label htmlFor="category" className="text-white">Category</Label>
-                  <Select value={formData.category} onValueChange={(value) => setFormData({ ...formData, category: value })}>
-                    <SelectTrigger className="mt-2 bg-gray-700 border-gray-600 text-white">
-                      <SelectValue placeholder="Select category" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {categories.map((category) => (
-                        <SelectItem key={category} value={category}>
-                          {category}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                
-                <div>
-                  <Label htmlFor="download_link" className="text-white">Download Link</Label>
-                  <Input
-                    id="download_link"
-                    value={formData.download_link}
-                    onChange={(e) => setFormData({ ...formData, download_link: e.target.value })}
-                    className="mt-2 bg-gray-700 border-gray-600 text-white"
-                    required
-                  />
-                </div>
-                
-                <div className="flex items-center space-x-2">
-                  <Switch
-                    id="featured"
-                    checked={formData.featured}
-                    onCheckedChange={(checked) => setFormData({ ...formData, featured: checked })}
-                  />
-                  <Label htmlFor="featured" className="text-white">Featured Movie</Label>
-                </div>
-                
-                <div className="flex gap-4">
-                  <Button type="submit" className="flex-1 bg-blue-600 hover:bg-blue-700">
-                    {editingMovie ? 'Update Movie' : 'Add Movie'}
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => {
-                      setIsAddDialogOpen(false)
-                      setEditingMovie(null)
-                      setFormData({
-                        title: '',
-                        poster_path: '',
-                        category: '',
-                        download_link: '',
-                        featured: false
-                      })
-                    }}
-                    className="border-gray-600 text-white hover:bg-gray-700"
                   >
-                    Cancel
-                  </Button>
+                    <option value="">Select category</option>
+                    {categories.map(category => (
+                      <option key={category} value={category}>{category}</option>
+                    ))}
+                  </select>
                 </div>
-              </form>
-            </DialogContent>
-          </Dialog>
-        </div>
+              </div>
+              <div>
+                <label htmlFor="poster_path" className="block text-sm font-medium text-gray-300 mb-2">
+                  Poster URL *
+                </label>
+                <input
+                  type="url"
+                  id="poster_path"
+                  name="poster_path"
+                  value={formData.poster_path}
+                  onChange={handleInputChange}
+                  className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                  placeholder="https://example.com/poster.jpg"
+                  required
+                />
+              </div>
+              <div>
+                <label htmlFor="download_link" className="block text-sm font-medium text-gray-300 mb-2">
+                  Download Link *
+                </label>
+                <input
+                  type="url"
+                  id="download_link"
+                  name="download_link"
+                  value={formData.download_link}
+                  onChange={handleInputChange}
+                  className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                  placeholder="https://example.com/download"
+                  required
+                />
+              </div>
+              <div className="flex items-center">
+                <input
+                  type="checkbox"
+                  id="featured"
+                  name="featured"
+                  checked={formData.featured}
+                  onChange={handleInputChange}
+                  className="w-4 h-4 text-green-500 bg-white/10 border-white/20 rounded focus:ring-green-500 focus:ring-2"
+                />
+                <label htmlFor="featured" className="ml-2 text-sm font-medium text-gray-300">
+                  Featured Movie
+                </label>
+              </div>
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full bg-gradient-to-r from-green-500 to-emerald-500 text-white py-3 rounded-xl font-semibold hover:from-green-600 hover:to-emerald-600 transition-all duration-300 transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {loading ? 'Adding Movie...' : 'Add Movie'}
+              </button>
+            </form>
+          </div>
 
-        <div className="bg-gray-800 rounded-lg p-6">
-          <h2 className="text-xl font-bold text-white mb-4">Movies ({movies.length})</h2>
-          
-          {movies.length === 0 ? (
-            <div className="text-center py-8 text-gray-400">
-              No movies found. Add your first movie!
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {movies.map((movie) => (
-                <div key={movie.id} className="flex items-center justify-between p-4 bg-gray-700 rounded-lg">
-                  <div className="flex items-center space-x-4">
-                    <img
-                      src={movie.poster_path}
-                      alt={movie.title}
-                      className="w-12 h-16 object-cover rounded"
-                      onError={(e) => {
-                        e.currentTarget.src = 'https://via.placeholder.com/500x750?text=No+Image'
-                      }}
-                    />
-                    <div>
-                      <div className="font-medium text-white">{movie.title}</div>
-                      <div className="text-sm text-gray-400">{movie.category}</div>
-                      {movie.featured && (
-                        <span className="text-xs bg-yellow-600 text-white px-2 py-1 rounded">Featured</span>
-                      )}
+          {/* Movies List */}
+          <div className="glass-card p-6 rounded-3xl">
+            <h2 className="text-2xl font-bold text-white mb-6">Manage Movies ({movies.length})</h2>
+            {movies.length === 0 ? (
+              <p className="text-gray-400 text-center py-8">No movies added yet.</p>
+            ) : (
+              <div className="space-y-4">
+                {movies.map((movie) => (
+                  <div key={movie.id} className="glass-card p-4 rounded-2xl">
+                    <div className="flex items-center gap-4">
+                      <img
+                        src={movie.poster_path}
+                        alt={movie.title}
+                        className="w-16 h-24 object-cover rounded-lg"
+                      />
+                      <div className="flex-1">
+                        <h3 className="text-lg font-semibold text-white">{movie.title}</h3>
+                        <p className="text-gray-400">{movie.category}</p>
+                        <div className="flex items-center gap-2 mt-2">
+                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                            movie.featured 
+                              ? 'bg-green-500/20 text-green-400' 
+                              : 'bg-gray-500/20 text-gray-400'
+                          }`}>
+                            {movie.featured ? 'Featured' : 'Regular'}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => handleToggleFeatured(movie.id, !movie.featured)}
+                          className={`px-3 py-1 rounded-lg text-sm font-medium transition-all duration-300 ${
+                            movie.featured
+                              ? 'bg-gray-500/20 text-gray-400 hover:bg-gray-500/30'
+                              : 'bg-green-500/20 text-green-400 hover:bg-green-500/30'
+                          }`}
+                        >
+                          {movie.featured ? 'Unfeature' : 'Feature'}
+                        </button>
+                        <button
+                          onClick={() => handleDelete(movie.id)}
+                          className="px-3 py-1 bg-red-500/20 text-red-400 rounded-lg text-sm font-medium hover:bg-red-500/30 transition-all duration-300"
+                        >
+                          Delete
+                        </button>
+                      </div>
                     </div>
                   </div>
-                  <div className="flex space-x-2">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => {
-                        setEditingMovie(movie)
-                        setFormData({
-                          title: movie.title,
-                          poster_path: movie.poster_path,
-                          category: movie.category,
-                          download_link: movie.download_link,
-                          featured: movie.featured
-                        })
-                        setIsAddDialogOpen(true)
-                      }}
-                      className="border-gray-600 text-white hover:bg-gray-600"
-                    >
-                      <Edit className="w-4 h-4" />
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => handleDelete(movie.id)}
-                      className="border-red-600 text-red-400 hover:bg-red-600 hover:text-white"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </motion.div>
       </div>
     </div>
   )
