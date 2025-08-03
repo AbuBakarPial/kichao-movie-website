@@ -20,9 +20,18 @@ interface MovieCardProps {
 export default function MovieCard({ movie }: MovieCardProps) {
   const [isHovered, setIsHovered] = useState(false)
 
-  const handleDownload = () => {
+  const handleDownload = (e?: React.MouseEvent) => {
+    // Prevent event bubbling if event is provided
+    if (e) {
+      e.stopPropagation()
+    }
     // Redirect to the monetized download link
     window.open(movie.download_link, '_blank')
+  }
+
+  const handleCardClick = () => {
+    // Make the entire card clickable for download
+    handleDownload()
   }
 
   return (
@@ -35,6 +44,7 @@ export default function MovieCard({ movie }: MovieCardProps) {
       whileTap={{ scale: 0.95 }}
       onHoverStart={() => setIsHovered(true)}
       onHoverEnd={() => setIsHovered(false)}
+      onClick={handleCardClick}
     >
       {/* Movie Poster */}
       <div className="aspect-[2/3] relative overflow-hidden">
@@ -59,6 +69,26 @@ export default function MovieCard({ movie }: MovieCardProps) {
           transition={{ duration: 0.3 }}
         >
           {movie.category}
+        </motion.div>
+        
+        {/* Always visible download button for better UX */}
+        <motion.div
+          className="absolute bottom-4 left-1/2 transform -translate-x-1/2"
+          initial={{ opacity: 0.8, y: 0 }}
+          animate={{ 
+            opacity: isHovered ? 0 : 0.8,
+            y: isHovered ? 20 : 0
+          }}
+          transition={{ duration: 0.3 }}
+        >
+          <Button
+            onClick={handleDownload}
+            size="sm"
+            className="glass-button bg-gradient-to-r from-red-500 to-pink-500 hover:from-red-400 hover:to-pink-400 text-white flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium glow-red transition-all duration-300 shadow-lg shadow-red-500/25"
+          >
+            <Download className="w-4 h-4" />
+            Download
+          </Button>
         </motion.div>
         
         {/* Hover Overlay */}
