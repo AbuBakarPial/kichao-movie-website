@@ -20,6 +20,7 @@ export default function AdminPage() {
   const [password, setPassword] = useState('')
   const [movies, setMovies] = useState<Movie[]>([])
   const [loading, setLoading] = useState(false)
+  const [editingMovie, setEditingMovie] = useState<Movie | null>(null)
   const [formData, setFormData] = useState({
     title: '',
     poster_path: '',
@@ -88,41 +89,163 @@ export default function AdminPage() {
     }))
   }
 
+  const handleEdit = (movie: Movie) => {
+    setEditingMovie(movie)
+    setFormData({
+      title: movie.title,
+      poster_path: movie.poster_path,
+      category: movie.category,
+      download_link: movie.download_link,
+      featured: movie.featured
+    })
+  }
+
+  const handleCancelEdit = () => {
+    setEditingMovie(null)
+    setFormData({
+      title: '',
+      poster_path: '',
+      category: '',
+      download_link: '',
+      featured: false
+    })
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
 
     try {
-      const response = await fetch('/api/movies', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(formData),
-      })
+      if (editingMovie) {
+        // Update existing movie
+        const response = await fetch(`/api/movies/${editingMovie.id}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(formData),
+        })
 
-      if (response.ok) {
-        const newMovie = await response.json()
+        if (response.ok) {
+          const updatedMovie = await response.json()
+          
+          // Update local state
+          setMovies(prev => 
+            prev.map(movie => 
+              movie.id === editingMovie.id ? updatedMovie : movie
+            )
+          )
+          
+          // Update localStorage
+          const localMovies = movies.map(movie => 
+            movie.id === editingMovie.id ? { ...movie, ...formData } : movie
+          )
+          localStorage.setItem('adminMovies', JSON.stringify(localMovies))
+          
+          // Reset form
+          handleCancelEdit()
+          
+          toast.success('Movie updated successfully!')
+        } else {
+          // If API fails, update local state only
+          setMovies(prev => 
+            prev.map(movie => 
+              movie.id === editingMovie.id ? { ...movie, ...formData } : movie
+            )
+          )
+          
+          // Update localStorage
+          const localMovies = movies.map(movie => 
+            movie.id === editingMovie.id ? { ...movie, ...formData } : movie
+          )
+          localStorage.setItem('adminMovies', JSON.stringify(localMovies))
+          
+          // Reset form
+          handleCancelEdit()
+          
+          toast.success('Movie updated locally!')
+        }
+      } else {
+        // Add new movie
+        const response = await fetch('/api/movies', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(formData),
+        })
+
+        if (response.ok) {
+          const newMovie = await response.json()
+          
+          // Update local state
+          setMovies(prev => [newMovie, ...prev])
+          
+          // Save to localStorage as backup
+          const localMovies = [...movies, newMovie]
+          localStorage.setItem('adminMovies', JSON.stringify(localMovies))
+          
+          // Reset form
+          setFormData({
+            title: '',
+            poster_path: '',
+            category: '',
+            download_link: '',
+            featured: false
+          })
+          
+          toast.success('Movie added successfully!')
+        } else {
+          // If API fails, create local movie
+          const localMovie: Movie = {
+            id: Date.now().toString(),
+            ...formData,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+          }
+          
+          // Update local state
+          setMovies(prev => [localMovie, ...prev])
+          
+          // Save to localStorage
+          const localMovies = [...movies, localMovie]
+          localStorage.setItem('adminMovies', JSON.stringify(localMovies))
+          
+          // Reset form
+          setFormData({
+            title: '',
+            poster_path: '',
+            category: '',
+            download_link: '',
+            featured: false
+          })
+          
+          toast.success('Movie added locally (API unavailable)!')
+        }
+      }
+    } catch (error) {
+      console.error('Error saving movie:', error)
+      
+      if (editingMovie) {
+        // Update local movie as fallback
+        setMovies(prev => 
+          prev.map(movie => 
+            movie.id === editingMovie.id ? { ...movie, ...formData } : movie
+          )
+        )
         
-        // Update local state
-        setMovies(prev => [newMovie, ...prev])
-        
-        // Save to localStorage as backup
-        const localMovies = [...movies, newMovie]
+        // Update localStorage
+        const localMovies = movies.map(movie => 
+          movie.id === editingMovie.id ? { ...movie, ...formData } : movie
+        )
         localStorage.setItem('adminMovies', JSON.stringify(localMovies))
         
         // Reset form
-        setFormData({
-          title: '',
-          poster_path: '',
-          category: '',
-          download_link: '',
-          featured: false
-        })
+        handleCancelEdit()
         
-        toast.success('Movie added successfully!')
+        toast.success('Movie updated locally (network error)!')
       } else {
-        // If API fails, create local movie
+        // Create local movie as fallback
         const localMovie: Movie = {
           id: Date.now().toString(),
           ...formData,
@@ -146,36 +269,8 @@ export default function AdminPage() {
           featured: false
         })
         
-        toast.success('Movie added locally (API unavailable)!')
+        toast.success('Movie added locally (network error)!')
       }
-    } catch (error) {
-      console.error('Error adding movie:', error)
-      
-      // Create local movie as fallback
-      const localMovie: Movie = {
-        id: Date.now().toString(),
-        ...formData,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      }
-      
-      // Update local state
-      setMovies(prev => [localMovie, ...prev])
-      
-      // Save to localStorage
-      const localMovies = [...movies, localMovie]
-      localStorage.setItem('adminMovies', JSON.stringify(localMovies))
-      
-      // Reset form
-      setFormData({
-        title: '',
-        poster_path: '',
-        category: '',
-        download_link: '',
-        featured: false
-      })
-      
-      toast.success('Movie added locally (network error)!')
     } finally {
       setLoading(false)
     }
@@ -335,9 +430,11 @@ export default function AdminPage() {
             </button>
           </div>
 
-          {/* Add Movie Form */}
+          {/* Add/Edit Movie Form */}
           <div className="glass-card p-6 rounded-3xl mb-8">
-            <h2 className="text-2xl font-bold text-white mb-6">Add New Movie</h2>
+            <h2 className="text-2xl font-bold text-white mb-6">
+              {editingMovie ? 'Edit Movie' : 'Add New Movie'}
+            </h2>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
@@ -417,13 +514,24 @@ export default function AdminPage() {
                   Featured Movie
                 </label>
               </div>
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full bg-gradient-to-r from-green-500 to-emerald-500 text-white py-3 rounded-xl font-semibold hover:from-green-600 hover:to-emerald-600 transition-all duration-300 transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {loading ? 'Adding Movie...' : 'Add Movie'}
-              </button>
+              <div className="flex gap-4">
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="flex-1 bg-gradient-to-r from-green-500 to-emerald-500 text-white py-3 rounded-xl font-semibold hover:from-green-600 hover:to-emerald-600 transition-all duration-300 transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {loading ? (editingMovie ? 'Updating Movie...' : 'Adding Movie...') : (editingMovie ? 'Update Movie' : 'Add Movie')}
+                </button>
+                {editingMovie && (
+                  <button
+                    type="button"
+                    onClick={handleCancelEdit}
+                    className="flex-1 bg-gradient-to-r from-gray-500 to-gray-600 text-white py-3 rounded-xl font-semibold hover:from-gray-600 hover:to-gray-700 transition-all duration-300"
+                  >
+                    Cancel
+                  </button>
+                )}
+              </div>
             </form>
           </div>
 
@@ -456,6 +564,12 @@ export default function AdminPage() {
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => handleEdit(movie)}
+                          className="px-3 py-1 bg-blue-500/20 text-blue-400 rounded-lg text-sm font-medium hover:bg-blue-500/30 transition-all duration-300"
+                        >
+                          Edit
+                        </button>
                         <button
                           onClick={() => handleToggleFeatured(movie.id, !movie.featured)}
                           className={`px-3 py-1 rounded-lg text-sm font-medium transition-all duration-300 ${
