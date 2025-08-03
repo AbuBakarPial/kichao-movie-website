@@ -14,6 +14,12 @@ interface Movie {
   category: string
   download_link: string
   featured: boolean
+   // TMDB specific fields (optional)
+  tmdb_id?: number
+  overview?: string
+  release_date?: string
+  vote_average?: number
+  from_tmdb?: boolean
 }
 
 export default function Home() {
