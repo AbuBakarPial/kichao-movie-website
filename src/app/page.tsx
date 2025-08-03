@@ -32,17 +32,40 @@ export default function Home() {
     filterMovies()
   }, [movies, searchQuery, selectedCategory])
 
-  const fetchMovies = async () => {
+const fetchMovies = async () => {
     try {
       const response = await fetch('/api/movies')
-      const data = await response.json()
-      setMovies(data)
-      
-      // Set featured movies
-      const featured = data.filter((movie: Movie) => movie.featured)
-      setFeaturedMovies(featured)
+      if (response.ok) {
+        const data = await response.json()
+        setMovies(data)
+        
+        // Set featured movies
+        const featured = data.filter((movie: Movie) => movie.featured)
+        setFeaturedMovies(featured)
+      } else {
+        // If API fails, try localStorage
+        const localMovies = localStorage.getItem('adminMovies')
+        if (localMovies) {
+          const data = JSON.parse(localMovies)
+          setMovies(data)
+          
+          // Set featured movies
+          const featured = data.filter((movie: Movie) => movie.featured)
+          setFeaturedMovies(featured)
+        }
+      }
     } catch (error) {
       console.error('Error fetching movies:', error)
+      // Fallback to localStorage
+      const localMovies = localStorage.getItem('adminMovies')
+      if (localMovies) {
+        const data = JSON.parse(localMovies)
+        setMovies(data)
+        
+        // Set featured movies
+        const featured = data.filter((movie: Movie) => movie.featured)
+        setFeaturedMovies(featured)
+      }
     } finally {
       setLoading(false)
     }
