@@ -1,69 +1,20 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 
-// Sample movies data for demo mode
-const sampleMovies = [
-  {
-    id: "1",
-    title: "The Dark Knight",
-    poster_path: "https://image.tmdb.org/t/p/w500/qJ2tW6WMUDux911r6m7haRef0WH.jpg",
-    category: "Action",
-    download_link: "https://example.com/download/dark-knight",
-    featured: true,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString()
-  },
-  {
-    id: "2", 
-    title: "Inception",
-    poster_path: "https://image.tmdb.org/t/p/w500/9gk7adL6UxT9sGqMwYpWRLj7z1w.jpg",
-    category: "Sci-Fi",
-    download_link: "https://example.com/download/inception",
-    featured: true,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString()
-  },
-  {
-    id: "3",
-    title: "The Matrix",
-    poster_path: "https://image.tmdb.org/t/p/w/w5p2m0T03aG8mDC4wJ8XeT55Xw.jpg",
-    category: "Sci-Fi",
-    download_link: "https://example.com/download/matrix",
-    featured: false,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString()
-  },
-  {
-    id: "4",
-    title: "Pulp Fiction",
-    poster_path: "https://image.tmdb.org/t/p/w500/d5iIlFn5s0I2zPIcVkL1WcY1zWs.jpg",
-    category: "Drama",
-    download_link: "https://example.com/download/pulp-fiction",
-    featured: false,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString()
-  },
-  {
-    id: "5",
-    title: "The Hangover",
-    poster_path: "https://image.tmdb.org/t/p/w500/hVc4W5PhVhJjG7xZJiG5DL4N2I.jpg",
-    category: "Comedy",
-    download_link: "https://example.com/download/hangover",
-    featured: false,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString()
-  },
-  {
-    id: "6",
-    title: "The Conjuring",
-    poster_path: "https://image.tmdb.org/t/p/w5/wBzMyg8XyBTZ7tZejLGJf5aVFc.jpg",
-    category: "Horror",
-    download_link: "https://example.com/download/conjuring",
-    featured: true,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString()
+async function syncWithMongoDB(movie) {
+  try {
+    await fetch('YOUR_LOCAL_ADMIN_URL/api/movies', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer YOUR_SECRET_TOKEN', // Add security
+      },
+      body: JSON.stringify(movie),
+    })
+  } catch (error) {
+    console.error('Failed to sync with MongoDB:', error)
   }
-]
+}
 
 export async function GET(request: Request) {
   try {
@@ -132,22 +83,26 @@ export async function POST(request: Request) {
         featured: featured || false
       }
     })
-
+    
+// Sync with MongoDB
+    await syncWithMongoDB(body)
+    
     return NextResponse.json(movie, { status: 201 })
   } catch (error) {
-    console.error('Database error, creating movie in demo mode:', error)
+    console.error('Database error:', error)
+    return NextResponse.json({ error: 'Failed to create movie' }, { status: 500 })
     
     // If database fails, create a demo movie with generated ID
-    const demoMovie = {
-      id: Date.now().toString(),
-      title: title || 'Untitled Movie',
-      poster_path: poster_path || 'https://via.placeholder.com/500x750?text=No+Poster',
-      category: category || 'Unknown',
-      download_link: download_link || '#',
-      featured: featured || false,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
-    }
+    // const demoMovie = {
+    //   id: Date.now().toString(),
+    //   title: title || 'Untitled Movie',
+    //   poster_path: poster_path || 'https://via.placeholder.com/500x750?text=No+Poster',
+    //   category: category || 'Unknown',
+    //   download_link: download_link || '#',
+    //   featured: featured || false,
+    //   createdAt: new Date().toISOString(),
+    //   updatedAt: new Date().toISOString()
+    // }
     
     return NextResponse.json(demoMovie, { status: 201 })
   }
